@@ -81,16 +81,32 @@ function initCluster() {
             return levels[tree.name];
         }
 
-        function setShift(tree) {
+        // function setShift(tree) {
+        //     var children = tree.children;
+
+        //     children.forEach(function (node) {
+        //         setShift(node);
+        //     });
+        //     shifts[tree.name] = (children.length)
+        //         ? (shifts[children[0].name] +
+        //             shifts[children[children.length - 1].name]) / 2
+        //         : count++;
+        // }
+
+        function setShift(tree, index) {
             var children = tree.children;
 
-            children.forEach(function (node) {
-                setShift(node);
-            });
-            shifts[tree.name] = (children.length)
-                ? (shifts[children[0].name] +
-                    shifts[children[children.length - 1].name]) / 2
-                : count++;
+            if (children.length == 0) {
+                if (index == 0) count++;
+                shifts[tree.name] = count++;
+            }
+            else {
+                children.forEach(function (node, index) {
+                    setShift(node, index);
+                });
+                shifts[tree.name] = (shifts[children[0].name] +
+                    shifts[children[children.length - 1].name]) / 2;
+            }
         }
 
         function setCoords(tree) {
@@ -118,7 +134,6 @@ function display(tree, svg) {
     function drawTree(tree) {
         rectToRadial(tree);
 
-
         tree.children.forEach(function (node) {
             rectToRadial(node);
             append($g, "line").attr({
@@ -132,18 +147,23 @@ function display(tree, svg) {
             drawTree(node);
         })
 
-
         var flag = tree.title == "display" || tree.title == "DirtySprite"
             || tree.title == "LineSprite" || tree.title == "RectSprite" || tree.title == "TextSprite";
         append($g, "circle").attr({
             cx: tree.rx,
             cy: tree.ry,
-            // cx: tree.x,
-            // cy: tree.y,
             r: 2.5,
             fill: flag
                 ? "red" : "black"
         });
+
+        if (tree.children.length == 0)
+            append($g, "text")
+                .attr("transform", 'translate(' + [tree.rx, tree.ry] +
+                    ') rotate(' + (tree.y > 90 && tree.y < 270 ? -(180 - tree.y): tree.y) + ')')
+                    .attr("text-anchor", tree.y > 90 && tree.y < 270 ? "end" : "start")
+                .css("font-size", 10)
+                .text(tree.title);
     }
 
     function append(parent, tag) {
