@@ -15,7 +15,8 @@ $(document).ready(function () {
 
     var tree = buildTree(data);
     cluster(tree);
-    display(tree, svg);
+    var graph = buildGraph(tree);
+    display(tree, graph, svg);
 });
 
 function buildTree(nodes) {
@@ -41,6 +42,7 @@ function buildTree(nodes) {
             connectToParent({ "name": parentName });
             parent = map[parentName];
         }
+        node.parent = parent;
         parent.children.push(node);
     }
 
@@ -124,46 +126,251 @@ function initCluster() {
     return cluster;
 }
 
-function display(tree, svg) {
+function buildGraph(tree) {
+    var map = {};
+    addToMap(tree);
+    initInLink();
+    initOutLink();
+
+    function addToMap(tree) {
+        map[tree.name] = tree;
+        tree.children.forEach(addToMap);
+    }
+
+    function initInLink() {
+        for (var nodeName in map) {
+            var node = map[nodeName];
+            if (node.imports) {
+                node.imports = node.imports.map(function (importName) {
+                    return map[importName];
+                });
+            }
+        }
+    }
+
+    function initOutLink() {
+        for (var nodeName in map) {
+            var node = map[nodeName];
+            if (node.imports) {
+                node.imports.forEach(function (target) {
+                    if (target.exports == undefined) {
+                        target.exports = [];
+                    }
+                    target.exports.push(node);
+                })
+            }
+        }
+    }
+
+    return map;
+}
+
+function display(tree, graph, svg) {
     var diameter = +$(svg).attr("width"),
         radius = diameter / 2;
     var $g = append(svg, "g");
-    $g.attr("transform", "translate(" + radius + "," + radius + ")");
-    drawTree(tree);
+    $g.attr("transform", "translate(" + radius + "," + radius + ") rotate(-90)");
+    rectToRadial(graph);
+    // drawTree();
+    drawGraph();
+    addHandler();
 
-    function drawTree(tree) {
-        rectToRadial(tree);
-
-        tree.children.forEach(function (node) {
-            rectToRadial(node);
-            append($g, "line").attr({
-                "stroke-width": 1,
-                "stroke": "grey",
-                x1: tree.rx,
-                y1: tree.ry,
-                x2: node.rx,
-                y2: node.ry
+    function drawTree() {
+        for (var nodeName in graph) {
+            var node = graph[nodeName];
+            node.children.forEach(function (child) {
+                append($g, "line").attr({
+                    "class": "treelink",
+                    x1: node.rx,
+                    y1: node.ry,
+                    x2: child.rx,
+                    y2: child.ry
+                });
             });
-            drawTree(node);
-        })
+        }
 
-        var flag = tree.title == "display" || tree.title == "DirtySprite"
-            || tree.title == "LineSprite" || tree.title == "RectSprite" || tree.title == "TextSprite";
-        append($g, "circle").attr({
-            cx: tree.rx,
-            cy: tree.ry,
-            r: 2.5,
-            fill: flag
-                ? "red" : "black"
+        for (nodeName in graph) {
+            node = graph[nodeName];
+            append($g, "circle").attr({
+                "class": "treenode",
+                cx: node.rx,
+                cy: node.ry,
+                r: 2.5
+            });
+        }
+    }
+
+
+    function drawGraph() {
+        for (var nodeName in graph) {
+            var node = graph[nodeName];
+            if (node.imports) {
+                node.imports.forEach(function (target) {
+                    var path = findPath(tree, node, target);
+
+                    append($g, "path")
+                        .attr("class", "link")
+                        .attr("d", generatePath(path))
+                        .attr("data-source", node.name)
+                        .attr("data-target", target.name);
+                });
+            }
+            if (node.children.length == 0) {
+                append($g, "text")
+                    .attr("class", "node")
+                    .attr("transform", 'translate(' + [node.rx, node.ry] +
+                        ') rotate(' + (node.y > 180 ? (node.y - 180) : node.y) + ')')
+                    .attr("text-anchor", node.y > 180 ? "end" : "start")
+                    .attr("dy", "0.31em")
+                    .attr("id", node.name)
+                    .text(node.title);
+            }
+        }
+    }
+
+
+    function addHandler() {
+        var texts = { source: {}, target: {} },
+            links = { source: {}, target: {} };
+        for (var name in graph) {
+            var node = graph[name];
+            links.target[name] = document.querySelectorAll('[data-target=\"' + name + '\"]');
+            links.source[name] = document.querySelectorAll('[data-source=\"' + name + '\"]');
+            var ttarget = texts.target[name] = [],
+                tsource = texts.source[name] = [];
+
+            if (node.imports) {
+                node.imports.forEach(function (target) {
+                    ttarget.push(document.getElementById(target.name));
+                });
+            }
+            if (node.exports) {
+                node.exports.forEach(function (source) {
+                    tsource.push(document.getElementById(source.name));
+                })
+            }
+        }
+
+        $("text")
+            .mouseover(function (evt) {
+                var name = evt.target.id;
+                // var node = graph[name];
+                // var inLinks = document.querySelectorAll('[data-target=\"' + name + '\"]');
+                // var outLinks = document.querySelectorAll('[data-source=\"' + name + '\"]');
+                // inLinks.forEach(function (inLink) {
+                //     inLink.classList.add("link--target");
+                // });
+                // outLinks.forEach(function (outLink) {
+                //     outLink.classList.add("link--source");
+                // });
+
+                // if (node.imports) {
+                //     node.imports.forEach(function (target) {
+                //         document.getElementById(target.name).classList.add("node--target");
+                //     });
+                // }
+                // if (node.exports) {
+                //     node.exports.forEach(function (source) {
+                //         document.getElementById(source.name).classList.add("node--source");
+                //     })
+                // }
+                links.target[name].forEach(function (link) {
+                    link.classList.add("link--target");
+                    var $link = $(link).detach();
+                    $link.appendTo("g");
+                });
+                links.source[name].forEach(function (link) {
+                    link.classList.add("link--source");
+                    var $link = $(link).detach();
+                    $link.appendTo("g");
+                });
+                texts.target[name].forEach(function (text) {
+                    text.classList.add("node--target");
+                });
+                texts.source[name].forEach(function (text) {
+                    text.classList.add("node--source");
+                });
+            })
+            .mouseout(function (evt) {
+                var name = evt.target.id;
+                //     var node = graph[name];
+                //     var inLinks = document.querySelectorAll('.link--target');
+                //     var outLinks = document.querySelectorAll('.link--source');
+                //     inLinks.forEach(function (inLink) {
+                //         inLink.classList.remove("link--target");
+                //     });
+                //     outLinks.forEach(function (outLink) {
+                //         outLink.classList.remove("link--source");
+                //     });
+
+                //     if (node.imports) {
+                //         node.imports.forEach(function (target) {
+                //             document.getElementById(target.name).classList.remove("node--target");
+                //         });
+                //     }
+                //     if (node.exports) {
+                //         node.exports.forEach(function (source) {
+                //             document.getElementById(source.name).classList.remove("node--source");
+                //         })
+                //     }
+                links.target[name].forEach(function (link) {
+                    link.classList.remove("link--target");
+                });
+                links.source[name].forEach(function (link) {
+                    link.classList.remove("link--source");
+                });
+                texts.target[name].forEach(function (text) {
+                    text.classList.remove("node--target");
+                });
+                texts.source[name].forEach(function (text) {
+                    text.classList.remove("node--source");
+                });
+            });
+    }
+
+    function generatePath(path) {//nodes => d string
+        var beta = 0.85;
+        var ctrlPoints = [];
+        path.forEach(function (node) {
+            ctrlPoints.push([node.rx, node.ry]);
         });
+        straighten(ctrlPoints, beta);
 
-        if (tree.children.length == 0)
-            append($g, "text")
-                .attr("transform", 'translate(' + [tree.rx, tree.ry] +
-                    ') rotate(' + (tree.y > 90 && tree.y < 270 ? -(180 - tree.y): tree.y) + ')')
-                    .attr("text-anchor", tree.y > 90 && tree.y < 270 ? "end" : "start")
-                .css("font-size", 10)
-                .text(tree.title);
+        if (ctrlPoints.length >= 4) {
+            return pointsToPath(generatePoints(ctrlPoints));
+        } else {
+            return " M " + ctrlPoints[0][0] + "," + ctrlPoints[0][1] +
+                " Q " + ctrlPoints[1][0] + ", " + ctrlPoints[1][1] +
+                " " + ctrlPoints[2][0] + ", " + ctrlPoints[2][1];
+        }
+    }
+
+    function straighten(points, beta) {
+        var len = points.length,
+            p0 = points[0],
+            dp = add(points[len - 1], multi(-1, p0)),
+            betaComp = 1 - beta,
+            p;
+        for (var i = 0; i < len; i++) {
+            p = points[i];
+            points[i] = add(multi(beta, p), multi(betaComp, add(p0, multi(i / (len - 1), dp))));
+        }
+
+        function add(p1, p2) {
+            return [p1[0] + p2[0], p1[1] + p2[1]];
+        }
+        function multi(k, p) {
+            return [p[0] * k, p[1] * k];
+        }
+    }
+
+    function pointsToPath(points) { //pos points => d string
+        var d = " M " + points[0][0] + "," + points[0][1];
+        var len = points.length;
+        for (var i = 1; i < len; i++) {
+            d += " L " + points[i][0] + "," + points[i][1];
+        }
+        return d;
     }
 
     function append(parent, tag) {
@@ -171,12 +378,124 @@ function display(tree, svg) {
         $(parent).append(elem);
         return $(elem);
     }
+}
 
-    function rectToRadial(tree) {
-        var r = tree.x,
-            theta = tree.y / 180 * Math.PI;
-        tree.rx = r * Math.cos(theta);
-        tree.ry = r * Math.sin(theta);
+// function generatePoints(path) {
+//     return path;
+// }
+
+function generatePoints(points) {//control points => pos points
+    var degree = 3;
+
+    // B-splines with clamped knot vectors pass through 
+    // the two end control points.
+    //
+    // A clamped knot vector must have `degree + 1` equal knots 
+    // at both its beginning and end.
+
+    var knots = [];
+    for (var i = 0; i < degree + 1; i++) {
+        knots.push(0);
     }
+    var len = points.length;
+    var ttmp = len - degree - 1;
+    for (i = 1; i <= ttmp; i++) {
+        knots.push(i);
+    }
+    for (i = 0; i < degree + 1; i++) {
+        knots.push(ttmp + 1);
+    }
+
+    var ret = [];
+    for (var t = 0; t < 1; t += 0.01) {
+        ret.push(interpolate(t, degree, points, knots));
+    }
+    return ret;
+}
+
+function findPath(tree, a, b) {
+    var pathA = [],
+        pathB = [],
+        path = [];
+    while (a.parent) {
+        pathA.push(a);
+        a = a.parent;
+    }
+    while (b.parent) {
+        pathB.push(b);
+        b = b.parent;
+    }
+    var lenA = pathA.length,
+        lenB = pathB.length,
+        i;
+    for (i = 0; i < lenA && i < lenB; i++) {
+        if (pathA[lenA - 1 - i] != pathB[lenB - 1 - i])
+            break;
+    }
+    var LCA = pathA[lenA - i];
+    if (LCA !== a && LCA !== b) {
+        path = pathA.slice(0, lenA - i + 1).concat(pathB.slice(0, lenB - i).reverse());
+    }
+    else if (LCA === a) {
+        path = pathA.slice(0, lenA - i + 1);
+    }
+    else {
+        path = pathB.slice(0, lenB - i + 1).reverse();
+    }
+    return path;
+}
+
+function rectToRadial(graph) {
+    for (var nodeName in graph) {
+        var node = graph[nodeName],
+            r = node.x,
+            theta = node.y / 180 * Math.PI;
+        node.rx = r * Math.cos(theta);
+        node.ry = r * Math.sin(theta);
+    }
+}
+
+//below is adapted from https://github.com/thibauts/b-spline
+function interpolate(t, degree, points, knots) {
+    var i, j, s, l;
+    var len = points.length;
+
+    var domain = [
+        degree,
+        knots.length - 1 - degree
+    ];
+
+    // remap t to the domain where the spline is defined
+    var low = knots[domain[0]];
+    var high = knots[domain[1]];
+    t = t * (high - low) + low;
+
+    // find s (the spline segment) for the [t] value provided
+    for (s = domain[0]; s < domain[1]; s++) {
+        if (t >= knots[s] && t <= knots[s + 1]) {
+            break;
+        }
+    }
+
+    // convert points to homogeneous coordinates
+    var v = [];
+    for (i = 0; i < len; i++) {
+        v[i] = [];
+        v[i][0] = points[i][0];
+        v[i][1] = points[i][1];
+    }
+
+    // l (level) goes from 1 to the curve degree + 1
+    var alpha;
+    for (l = 1; l <= degree + 1; l++) {
+        // build level l of the pyramid
+        for (i = s; i > s - degree - 1 + l; i--) {
+            alpha = (t - knots[i]) / (knots[i + degree + 1 - l] - knots[i]);
+            v[i][0] = (1 - alpha) * v[i - 1][0] + alpha * v[i][0];
+            v[i][1] = (1 - alpha) * v[i - 1][1] + alpha * v[i][1];
+        }
+    }
+
+    return [v[s][0], v[s][1]];
 }
 
