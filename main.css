@@ -1,63 +1,43 @@
-body {
-    width: 960px;
-    margin: auto;
-}
-/* svg {
-    border: 1px solid lightgrey;
-} */
-
-.treelink {
-    stroke: black;
-    stroke-opacity: 1;
-    stroke-width: 1;    
-    fill: none;
-    pointer-events: none;
+text {
+  font: 11px sans-serif;
+  fill: grey;
 }
 
-.treenode {
-    fill: none;
+text:hover,
+.node--source,
+.node--target {
+  font-weight: bold;
 }
 
-  .node {
-    font: 300 11px "Helvetica Neue", Helvetica, Arial, sans-serif;
-    fill: #bbb;
-  }
-  
-  .node:hover {
-    fill: #000;
-  }
-  
-  .link {
-    stroke: steelblue;
-    stroke-opacity: 0.4;
-    fill: none;
-    pointer-events: none;
-  }
-  
-  .node:hover,
-  .node--source,
-  .node--target {
-    font-weight: 700;
-  }
-  
-  .node--source {
-    fill: #2ca02c;
-  }
-  
-  .node--target {
-    fill: #d62728;
-  }
-  
-  .link--source,
-  .link--target {
-    stroke-opacity: 1;
-    stroke-width: 2px;
-  }
-  
-  .link--source {
-    stroke: #d62728;
-  }
-  
-  .link--target {
-    stroke: #2ca02c;
-  }
+text:hover {
+  fill: black;
+}
+
+.node--source {
+  fill: green;
+}
+
+.node--target {
+  fill: red;
+}
+
+path {
+  fill: none;
+  stroke: steelblue;
+  stroke-width: 1px;
+  opacity: 0.5;
+}
+
+.link--source, /*two hyphens [emotionless]*/
+.link--target {
+  stroke-width: 2px;
+  opacity: 1;
+}
+
+.link--source {
+  stroke: red;
+}
+
+.link--target {
+  stroke: green;
+}
